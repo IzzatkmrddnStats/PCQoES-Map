@@ -45,6 +45,8 @@ svg{display:block;width:100%;height:auto}
 .row:first-of-type{border-top:0}
 .row span{display:block;font-size:.8rem;color:var(--mute)}
 .row:hover b{text-decoration:underline}
+.map{position:relative}svg{touch-action:none;cursor:grab}svg:active{cursor:grabbing}.land,.brunei,.gl{vector-effect:non-scaling-stroke}
+.zc{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px}.zc button{width:36px;height:36px;font:inherit;font-size:1.2rem;line-height:1;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;cursor:pointer}.zc button:hover{background:var(--line)}.zc button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 @media (max-width:760px){.wrap{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.pin,.lab{animation:none}}
 </style>
@@ -52,10 +54,10 @@ svg{display:block;width:100%;height:auto}
 <body>
 <main>
 <h1>Travelling plan: who covers where</h1>
-<p class="sub">Pick a team to drop pins on the districts it covers.</p>
+<p class="sub">Pick a team to drop pins on the districts it covers. Scroll or pinch to zoom, drag to pan.</p>
 <div class="teams" id="teams" role="group" aria-label="Filter by team"></div>
 <div class="wrap">
-  <div class="map"><svg id="svg" viewBox="0 0 1010 440" role="img" aria-label="Map of Malaysia with district pins"></svg></div>
+  <div class="map"><svg id="svg" viewBox="0 0 1010 440" role="img" aria-label="Map of Malaysia with district pins"></svg><div class="zc"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Reset view">⟲</button></div></div>
   <aside class="side" id="side" aria-live="polite"></aside>
 </div>
 </main>
@@ -101,15 +103,16 @@ function draw(){
   list.forEach(function(d,i){
     var q=pr(d[2],d[3]),dl=(i*0.09)+"s",left=LEFT[d[0]];
     var g=el("g",{transform:"translate("+q[0]+","+q[1]+")","data-n":d[0]},layer);
-    var pin=el("g",{"class":"pin",style:"--d:"+dl},g);
+    var c=el("g",{"class":"cs"},g);
+    var pin=el("g",{"class":"pin",style:"--d:"+dl},c);
     el("path",{d:"M0,0C-2,-8-10,-12-10,-20A10,10 0 1 1 10,-20C10,-12 2,-8 0,0Z",fill:"var(--"+sel+")",stroke:"#fff","stroke-width":1.5},pin);
     el("circle",{cx:0,cy:-20,r:4,fill:"#fff"},pin);
-    var t=el("text",{x:left?-14:14,y:-16,"class":"lab","text-anchor":left?"end":"start",style:"--d:"+dl},g);
+    var t=el("text",{x:left?-14:14,y:-16,"class":"lab","text-anchor":left?"end":"start",style:"--d:"+dl},c);
     t.textContent=title(d[0]);
     var s=el("tspan",{x:left?-14:14,dy:"12","class":"sm"},t);s.setAttribute("style","font-size:10px;font-weight:400;fill:var(--mute)");
     s.textContent=d[1]+(d[4].length>1?" (shared: "+d[4].split("").join(", ")+")":"");
   });
-  side(list);
+  side(list);zoomApply();
 }
 function side(list){
   var s=document.getElementById("side");s.innerHTML="";
@@ -138,6 +141,31 @@ function refresh(){
   document.querySelectorAll(".t").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.k===sel))});
   draw();
 }
+var FULL={w:1010,h:440},vb={x:0,y:0,w:1010,h:440};
+function zoomApply(){var k=FULL.w/vb.w;svg.setAttribute("viewBox",vb.x+" "+vb.y+" "+vb.w+" "+vb.h);
+  svg.querySelectorAll(".cs").forEach(function(g){g.setAttribute("transform","scale("+(1/k)+")")});
+  svg.querySelectorAll(".dot").forEach(function(c){c.setAttribute("r",3/k)})}
+function clampVb(){vb.x=Math.max(0,Math.min(FULL.w-vb.w,vb.x));vb.y=Math.max(0,Math.min(FULL.h-vb.h,vb.y))}
+function zoomAt(f,cx,cy){var nw=Math.max(FULL.w/10,Math.min(FULL.w,vb.w/f)),r=nw/vb.w;
+  vb.x=cx-(cx-vb.x)*r;vb.y=cy-(cy-vb.y)*r;vb.w=nw;vb.h=nw*FULL.h/FULL.w;clampVb();zoomApply()}
+function toSvg(cx,cy){var r=svg.getBoundingClientRect();return[vb.x+(cx-r.left)/r.width*vb.w,vb.y+(cy-r.top)/r.height*vb.h]}
+svg.addEventListener("wheel",function(e){e.preventDefault();var p=toSvg(e.clientX,e.clientY);zoomAt(e.deltaY<0?1.25:0.8,p[0],p[1])},{passive:false});
+svg.addEventListener("dblclick",function(e){var p=toSvg(e.clientX,e.clientY);zoomAt(1.6,p[0],p[1])});
+var ptrs={};
+svg.addEventListener("pointerdown",function(e){ptrs[e.pointerId]=[e.clientX,e.clientY];try{svg.setPointerCapture(e.pointerId)}catch(x){}});
+svg.addEventListener("pointermove",function(e){
+  var prev=ptrs[e.pointerId];if(!prev)return;
+  var ids=Object.keys(ptrs),r=svg.getBoundingClientRect();
+  if(ids.length===1){vb.x-=(e.clientX-prev[0])/r.width*vb.w;vb.y-=(e.clientY-prev[1])/r.height*vb.h;clampVb();zoomApply()}
+  else if(ids.length===2){var o=ptrs[ids[0]==e.pointerId?ids[1]:ids[0]];
+    var d0=Math.hypot(prev[0]-o[0],prev[1]-o[1]),d1=Math.hypot(e.clientX-o[0],e.clientY-o[1]);
+    var p=toSvg((e.clientX+o[0])/2,(e.clientY+o[1])/2);if(d0>0)zoomAt(d1/d0,p[0],p[1])}
+  ptrs[e.pointerId]=[e.clientX,e.clientY]});
+function up(e){delete ptrs[e.pointerId]}
+svg.addEventListener("pointerup",up);svg.addEventListener("pointercancel",up);
+document.getElementById("zin").onclick=function(){zoomAt(1.5,vb.x+vb.w/2,vb.y+vb.h/2)};
+document.getElementById("zout").onclick=function(){zoomAt(1/1.5,vb.x+vb.w/2,vb.y+vb.h/2)};
+document.getElementById("zreset").onclick=function(){vb={x:0,y:0,w:FULL.w,h:FULL.h};zoomApply()};
 base();buttons();refresh();
 </script>
 </body>
