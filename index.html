@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Travelling Plan – Team Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--ink:#14202b;--mute:#5d6b78;--line:#d9e0e6;--sea:#dce9f3;--land:#f6f1e3;--coast:#8b8168;--grid:#ffffff99;--halo:#fff;
+--A:#e6194b;--B:#2f9e44;--C:#3b5bdb;--D:#f08c00;--E:#9c36b5;--F:#0c8599;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f161d;--panel:#18222c;--ink:#e8eef3;--mute:#93a3b1;--line:#2b3947;--sea:#13202c;--land:#26303a;--coast:#5c6b78;--grid:#ffffff10;--halo:#0f161d;}}
+:root[data-theme="dark"]{--bg:#0f161d;--panel:#18222c;--ink:#e8eef3;--mute:#93a3b1;--line:#2b3947;--sea:#13202c;--land:#26303a;--coast:#5c6b78;--grid:#ffffff10;--halo:#0f161d;}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 28px}
+h1{font-size:clamp(1.4rem,3.4vw,2rem);font-weight:800;margin:0 0 4px;letter-spacing:-.01em}
+.sub{margin:0 0 16px;color:var(--mute)}
+.teams{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.t{font:inherit;font-weight:600;border:2px solid var(--c);background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 16px;cursor:pointer;display:flex;gap:8px;align-items:center;transition:background .15s,color .15s}
+.t i{font-style:normal;font-weight:400;opacity:.7;font-size:.85em}
+.t:hover{background:color-mix(in srgb,var(--c) 15%,var(--panel))}
+.t[aria-pressed="true"]{background:var(--c);color:#fff}
+.t:focus-visible,.clear:focus-visible,.row:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.clear{font:inherit;border:0;background:none;color:var(--mute);text-decoration:underline;cursor:pointer;padding:8px}
+.wrap{display:grid;grid-template-columns:1fr 250px;gap:14px;align-items:start}
+.map{background:var(--sea);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+svg{display:block;width:100%;height:auto}
+.land{fill:var(--land);stroke:var(--coast);stroke-width:1.2}
+.brunei{fill:var(--line);stroke:var(--coast)}
+.gl{stroke:var(--grid);stroke-width:1}
+.cap{font-size:11px;fill:var(--mute);font-weight:600}
+.dot{fill:var(--mute);opacity:.45}
+.pin{transform-box:fill-box;transform-origin:50% 100%;animation:pop .45s cubic-bezier(.3,1.6,.5,1) both;animation-delay:var(--d)}
+@keyframes pop{from{transform:translateY(-26px) scale(.2);opacity:0}to{transform:none;opacity:1}}
+.lab{font-size:12px;font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--halo);stroke-width:3.5px;stroke-linejoin:round;animation:fade .3s both;animation-delay:var(--d)}
+.lab small{font-size:10px;font-weight:400;fill:var(--mute)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.pin.hi{filter:drop-shadow(0 0 4px var(--ink))}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:120px}
+.side h2{margin:0 0 8px;font-size:1.05rem}
+.side p{margin:0;color:var(--mute);font-size:.92rem;line-height:1.45}
+.row{display:block;width:100%;text-align:left;font:inherit;background:none;border:0;border-top:1px solid var(--line);padding:9px 2px;cursor:pointer;color:var(--ink)}
+.row:first-of-type{border-top:0}
+.row span{display:block;font-size:.8rem;color:var(--mute)}
+.row:hover b{text-decoration:underline}
+@media (max-width:760px){.wrap{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.pin,.lab{animation:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Travelling plan: who covers where</h1>
+<p class="sub">Pick a team to drop pins on the districts it covers.</p>
+<div class="teams" id="teams" role="group" aria-label="Filter by team"></div>
+<div class="wrap">
+  <div class="map"><svg id="svg" viewBox="0 0 1010 440" role="img" aria-label="Map of Malaysia with district pins"></svg></div>
+  <aside class="side" id="side" aria-live="polite"></aside>
+</div>
+</main>
+<script>
+var D=[["JOHOR BAHRU","Johor",103.74,1.49,"A"],["SEGAMAT","Johor",102.82,2.51,"B"],["KOTA SETAR","Kedah",100.37,6.12,"C"],
+["BACHOK","Kelantan",102.40,5.95,"D"],["JASIN","Melaka",102.43,2.31,"E"],["MELAKA TENGAH","Melaka",102.25,2.20,"F"],
+["PORT DICKSON","Negeri Sembilan",101.80,2.52,"A"],["SEREMBAN","Negeri Sembilan",101.94,2.73,"B"],["BENTONG","Pahang",101.91,3.52,"C"],
+["TEMERLOH","Pahang",102.42,3.45,"D"],["KINTA","Perak",101.08,4.60,"EF"],["PERAK TENGAH","Perak",100.98,4.37,"A"],
+["PERLIS (TIADA DAERAH)","Perlis",100.20,6.45,"BC"],["BARAT DAYA","Pulau Pinang",100.22,5.30,"D"],["SEBERANG PERAI UTARA","Pulau Pinang",100.43,5.42,"E"],
+["WP LABUAN","Sabah",115.24,5.28,"F"],["PENAMPANG","Sabah",116.10,5.90,"A"],["KUALA LANGAT","Selangor",101.50,2.82,"BCD"],
+["SEPANG","Selangor",101.70,2.70,"EFA"],["DUNGUN","Terengganu",103.42,4.76,"B"],["KEMAMAN","Terengganu",103.42,4.23,"C"],["MIRI","Sarawak",114.00,4.40,"D"]];
+var NONE=["Langkawi (Kedah)","Beaufort, Papar, Putatan (Sabah)","Putrajaya (Selangor)"];
+var LEFT={"KUALA LANGAT":1,"SEPANG":1,"BARAT DAYA":1,"WP LABUAN":1,"SEBERANG PERAI UTARA":1,"KINTA":1,"PERAK TENGAH":1,"MIRI":1};
+var PEN=[[100.12,6.45],[100.40,6.52],[100.65,6.40],[101.00,6.25],[101.40,5.95],[101.90,5.85],[102.00,6.15],[102.10,6.24],[102.25,6.13],[102.50,5.90],[102.70,5.65],[103.13,5.33],[103.42,4.76],[103.43,4.23],[103.33,3.80],[103.50,3.45],[103.40,2.80],[103.84,2.43],[104.10,1.93],[104.27,1.45],[103.95,1.40],[103.75,1.32],[103.50,1.26],[103.35,1.50],[102.57,2.05],[102.25,2.19],[101.80,2.50],[101.60,2.75],[101.35,3.00],[101.25,3.35],[100.90,3.75],[100.60,4.23],[100.45,4.90],[100.38,5.40],[100.35,5.65],[100.28,6.10],[100.12,6.40]];
+var LGK=[[99.68,6.30],[99.85,6.25],[99.90,6.40],[99.75,6.45]];
+var BOR=[[109.65,2.08],[110.10,1.70],[110.50,1.70],[111.00,1.90],[111.50,2.45],[112.10,2.95],[113.05,3.25],[113.60,3.80],[114.00,4.40],[114.08,4.58],[114.35,4.20],[114.70,4.10],[115.30,4.30],[115.37,4.90],[115.60,5.10],[115.90,5.35],[116.05,5.97],[116.35,6.50],[116.80,7.05],[117.20,6.60],[117.70,6.40],[118.10,5.85],[118.35,5.00],[117.90,4.25],[117.70,4.15],[117.00,4.35],[116.20,4.00],[115.60,3.90],[115.55,3.00],[115.20,2.80],[114.70,2.20],[113.90,1.50],[113.00,1.40],[112.20,1.45],[111.40,1.10],[110.60,1.40],[109.70,1.60]];
+var BRU=[[114.08,4.58],[114.50,4.95],[115.03,5.03],[115.37,4.90],[115.00,4.55],[115.30,4.30],[114.70,4.10],[114.35,4.20]];
+var S=60,P={x:0,lon:98.4,lat:7.0},E={x:420,lon:109.2,lat:7.5};
+var NS="http://www.w3.org/2000/svg",svg=document.getElementById("svg"),sel=null;
+function pr(lon,lat){var p=lon>108?E:P;return[p.x+(lon-p.lon)*S,(p.lat-lat)*S+12]}
+function el(n,a,par){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);(par||svg).appendChild(e);return e}
+function poly(pts,cls){el("polygon",{points:pts.map(function(q){return pr(q[0],q[1]).join(",")}).join(" "),"class":cls})}
+function base(){
+  [[P,98.4,104.9,0.9,7.0],[E,109.2,119,0.6,7.5]].forEach(function(b){
+    var a=pr(b[1],b[4]),c=pr(b[2],b[3]);
+    el("rect",{x:a[0],y:a[1],width:c[0]-a[0],height:c[1]-a[1],fill:"none",stroke:"var(--line)"});
+    for(var g=Math.ceil(b[1]);g<=b[2];g++){var u=pr(g,0);el("line",{x1:u[0],x2:u[0],y1:a[1],y2:c[1],"class":"gl"})}
+    for(var h=Math.ceil(b[3]);h<=b[4];h++){var v=pr(100,h);el("line",{x1:a[0],x2:c[0],y1:v[1],y2:v[1],"class":"gl"})}
+  });
+  poly(PEN,"land");poly(LGK,"land");poly(BOR,"land");poly(BRU,"brunei");
+  var t1=pr(99.0,0.95),t2=pr(110.0,0.7);
+  el("text",{x:t1[0],y:t1[1]-14,"class":"cap"}).textContent="Peninsular Malaysia";
+  el("text",{x:t2[0],y:t2[1]-14,"class":"cap"}).textContent="Sabah & Sarawak";
+  var b=pr(114.75,4.62);el("text",{x:b[0],y:b[1],"class":"cap","text-anchor":"middle","font-style":"italic"}).textContent="Brunei";
+  D.forEach(function(d){var q=pr(d[2],d[3]);el("circle",{cx:q[0],cy:q[1],r:3,"class":"dot"})});
+}
+var layer;
+function title(n){return n.toLowerCase().replace(/\b\w/g,function(c){return c.toUpperCase()}).replace("Wp ","WP ")}
+function draw(){
+  if(layer)layer.remove();
+  layer=el("g",{});
+  var list=sel?D.filter(function(d){return d[4].indexOf(sel)>-1}):[];
+  list.forEach(function(d,i){
+    var q=pr(d[2],d[3]),dl=(i*0.09)+"s",left=LEFT[d[0]];
+    var g=el("g",{transform:"translate("+q[0]+","+q[1]+")","data-n":d[0]},layer);
+    var pin=el("g",{"class":"pin",style:"--d:"+dl},g);
+    el("path",{d:"M0,0C-2,-8-10,-12-10,-20A10,10 0 1 1 10,-20C10,-12 2,-8 0,0Z",fill:"var(--"+sel+")",stroke:"#fff","stroke-width":1.5},pin);
+    el("circle",{cx:0,cy:-20,r:4,fill:"#fff"},pin);
+    var t=el("text",{x:left?-14:14,y:-16,"class":"lab","text-anchor":left?"end":"start",style:"--d:"+dl},g);
+    t.textContent=title(d[0]);
+    var s=el("tspan",{x:left?-14:14,dy:"12","class":"sm"},t);s.setAttribute("style","font-size:10px;font-weight:400;fill:var(--mute)");
+    s.textContent=d[1]+(d[4].length>1?" (shared: "+d[4].split("").join(", ")+")":"");
+  });
+  side(list);
+}
+function side(list){
+  var s=document.getElementById("side");s.innerHTML="";
+  if(!sel){s.innerHTML="<h2>No team selected</h2><p>Choose Team A to F above. Its districts will appear as pins on the map.</p><p style='margin-top:10px'>No team yet: "+NONE.join("; ")+".</p>";return}
+  var h=document.createElement("h2");h.textContent="Team "+sel+" · "+list.length+" districts";h.style.color="var(--"+sel+")";s.appendChild(h);
+  list.forEach(function(d){
+    var b=document.createElement("button");b.className="row";b.innerHTML="<b></b><span></span>";
+    b.firstChild.textContent=title(d[0]);b.lastChild.textContent=d[1]+(d[4].length>1?" · shared with "+d[4].replace(sel,"").split("").join(", "):"");
+    function hi(on){var g=layer.querySelector('[data-n="'+d[0]+'"] .pin');if(g)g.classList.toggle("hi",on)}
+    b.onmouseenter=b.onfocus=function(){hi(true)};b.onmouseleave=b.onblur=function(){hi(false)};
+    s.appendChild(b);
+  });
+}
+function buttons(){
+  var box=document.getElementById("teams");
+  "ABCDEF".split("").forEach(function(k){
+    var n=D.filter(function(d){return d[4].indexOf(k)>-1}).length;
+    var b=document.createElement("button");b.className="t";b.style.setProperty("--c","var(--"+k+")");b.setAttribute("aria-pressed","false");b.dataset.k=k;
+    b.innerHTML="Team "+k+" <i>"+n+"</i>";
+    b.onclick=function(){sel=(sel===k)?null:k;refresh()};
+    box.appendChild(b);
+  });
+  var c=document.createElement("button");c.className="clear";c.textContent="Clear";c.onclick=function(){sel=null;refresh()};box.appendChild(c);
+}
+function refresh(){
+  document.querySelectorAll(".t").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.k===sel))});
+  draw();
+}
+base();buttons();refresh();
+</script>
+</body>
+</html>
